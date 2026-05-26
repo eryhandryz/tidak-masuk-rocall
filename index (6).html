@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistem Rekod Ketidakhadiran - Perodua</title>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #eef2f5; color: #2c3e50; padding: 40px 20px; margin: 0; }
+        .container { max-width: 1250px; margin: auto; background: #f8fafc; padding: 35px; border-radius: 16px; box-shadow: 0 20px 40px rgba(0,0,0,0.1); border: 1px solid #dcdcdc; border-top: 10px solid #006b3f; }
+        .brand-header { text-align: center; margin-bottom: 35px; }
+        h2 { color: #006b3f; font-size: 26px; font-weight: 800; text-transform: uppercase; margin: 0 0 5px 0; }
+        .sub-title { color: #64748b; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 2px; }
+        input, textarea, select { font-family: inherit; padding: 10px; margin: 6px; border-radius: 8px; border: 1px solid #cbd5e1; width: calc(100% - 24px); box-sizing: border-box; }
+        button { font-family: inherit; background: linear-gradient(135deg, #008750, #006b3f); color: #ffffff; font-weight: 700; padding: 10px 20px; margin: 6px; border-radius: 8px; border: none; cursor: pointer; text-transform: uppercase; }
+        table { width: 100%; margin-top: 25px; border-collapse: separate; border-spacing: 0 10px; font-size: 14px; }
+        th { background: #006b3f; color: #ffffff; padding: 15px 12px; }
+        td { padding: 10px; text-align: center; background: #ffffff; border-top: 1px solid #eaeaea; border-bottom: 1px solid #eaeaea; }
+        .kuning-terang td { background: #fffde7 !important; color: #856404; }
+        .oren-terang td { background: #fff3e0 !important; color: #e65100; }
+        .merah-terang td { background: #ffebee !important; color: #c62828; }
+        .merah-pekat td { background: #b71c1c !important; color: #ffffff !important; font-weight: bold; }
+        .hijau-lepas td { background: #d4edda !important; color: #155724 !important; font-weight: 600; }
+        .delete { background: #ed1c24; color: white; padding: 6px 10px; border-radius: 6px; border: none; cursor: pointer; margin-top: 5px; }
+        .btn-lepas { background: #27ae60; color: white; padding: 6px 12px; border-radius: 6px; border: none; cursor: pointer; }
+        .filter-section { background: #edf2f7; padding: 20px; border-radius: 10px; margin: 20px 0; border: 1px solid #cbd5e1; display: none; }
+        #adminArea { display: none; }
+        
+        /* Animation untuk Blink */
+        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+        .blink-warning { animation: blink 1s infinite; border: 3px solid #c62828 !important; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="brand-header">
+        <h2>Rekod Ketidakhadiran Baris dan Taklimat</h2>
+        <div class="sub-title">Perodua Global Manifacturing & Operations Dashboard</div>
+        <button id="btnAuth" onclick="aksesAdmin()" style="background: #34495e;">LOG MASUK ADMIN</button>
+        <button id="btnClose" onclick="tutupAdmin()" style="background: #7f8c8d; display: none;">TUTUP AKSES ADMIN</button>
+    </div>
+
+    <div id="adminArea">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+            <input type="text" id="idpass" maxlength="6" placeholder="ID PASS (6 digit)">
+            <input type="text" id="nama" placeholder="Nama Kakitangan">
+        </div>
+        <textarea id="sebab" placeholder="Sebab ketidakhadiran..."></textarea>
+        <button onclick="tambahData()" style="width: 100%;">Daftar Rekod</button>
+        <hr>
+    </div>
+    
+    <div class="filter-section" id="filterSection">
+        <strong>Eksport Data ke Excel:</strong><br>
+        <select id="filterBulan" style="width: 200px;">
+            <option value="all">Semua Bulan</option>
+            <option value="0">Januari</option><option value="1">Februari</option><option value="2">Mac</option>
+            <option value="3">April</option><option value="4">Mei</option><option value="5">Jun</option>
+            <option value="6">Julai</option><option value="7">Ogos</option><option value="8">September</option>
+            <option value="9">Oktober</option><option value="10">November</option><option value="11">Disember</option>
+        </select>
+        <select id="filterTahun" style="width: 150px;"></select>
+        <button onclick="eksportExcel()" style="background: #2980b9;">Eksport ke Excel</button>
+    </div>
+
+    <input type="text" id="search" placeholder="Cari ID Pass..." onkeyup="paparData()">
+
+    <table>
+        <thead>
+            <tr>
+                <th>Bil</th><th>ID PASS</th><th>Nama</th><th>Tarikh/Masa</th>
+                <th>Sebab</th><th>Kekerapan</th><th>Status</th><th>Tindakan</th><th>Admin</th>
+            </tr>
+        </thead>
+        <tbody id="dataTable"></tbody>
+    </table>
+</div>
+
+<script>
+    let data = JSON.parse(localStorage.getItem("rollcall")) || [];
+    let isAdmin = false;
+
+    let y = document.getElementById("filterTahun");
+    for(let i=2024; i<=2050; i++) y.innerHTML += `<option value="${i}">${i}</option>`;
+    y.value = new Date().getFullYear();
+
+    function save() { localStorage.setItem("rollcall", JSON.stringify(data)); }
+
+    function aksesAdmin() {
+        let pass = prompt("Sila masukkan kata laluan admin:");
+        if (pass === "5313") {
+            isAdmin = true;
+            document.getElementById("adminArea").style.display = "block";
+            document.getElementById("filterSection").style.display = "block";
+            document.getElementById("btnAuth").style.display = "none";
+            document.getElementById("btnClose").style.display = "inline-block";
+            paparData();
+        } else { alert("Kata laluan salah!"); }
+    }
+
+    function tutupAdmin() {
+        isAdmin = false;
+        document.getElementById("adminArea").style.display = "none";
+        document.getElementById("filterSection").style.display = "none";
+        document.getElementById("btnAuth").style.display = "inline-block";
+        document.getElementById("btnClose").style.display = "none";
+        paparData();
+    }
+
+    function tambahData() {
+        let idpass = document.getElementById("idpass").value.trim();
+        let nama = document.getElementById("nama").value.trim();
+        let sebab = document.getElementById("sebab").value.trim();
+        if(!/^\d{6}$/.test(idpass) || !nama || !sebab) return alert("Sila isi ID (6 digit), Nama dan Sebab.");
+        
+        let now = new Date();
+        data.unshift({ id: Date.now(), idpass, nama, dilepaskan: "-", sebab, masa: now.toLocaleString(), iso: now.getTime() });
+        save(); paparData();
+        document.getElementById("idpass").value = ""; document.getElementById("nama").value = ""; document.getElementById("sebab").value = "";
+    }
+
+    function simpanEdit(id) {
+        let item = data.find(i => i.id === id);
+        if (item) {
+            item.nama = document.getElementById("editNama" + id).value;
+            item.sebab = document.getElementById("editSebab" + id).value;
+            let tarikhInput = document.getElementById("editTarikh" + id).value;
+            if(tarikhInput) {
+                let d = new Date(tarikhInput);
+                item.masa = d.toLocaleString();
+                item.iso = d.getTime();
+            }
+            save(); paparData();
+            alert("Rekod berjaya dikemaskini.");
+        }
+    }
+
+    function hitungKekerapanGlobal(){
+        let countMap = {};
+        [...data].sort((a,b) => a.iso - b.iso).forEach(i => {
+            countMap[i.idpass] = (countMap[i.idpass] || 0) + 1;
+            i.kekerapan = countMap[i.idpass];
+        });
+    }
+
+    function paparData(){
+        let table = document.getElementById("dataTable");
+        table.innerHTML = "";
+        hitungKekerapanGlobal();
+        let keyword = document.getElementById("search").value.trim();
+        
+        data.filter(i => i.idpass.includes(keyword)).forEach((item, i) => {
+            let status = "", warna = "", mesej = "", kelasTambahan = "";
+
+            if(item.dilepaskan !== "-") { 
+                warna = "hijau-lepas"; 
+                mesej = "Terima kasih."; 
+                status = "Dilepaskan (" + item.dilepaskan + ")";
+            } else if(item.kekerapan <= 2) { 
+                status = (item.kekerapan === 1) ? "Pertama" : "Peringatan"; 
+                warna = "kuning-terang"; 
+                mesej = "sila hadir awal."; 
+            } else if(item.kekerapan <= 4) { 
+                status = "Peringatan & Pemantauan"; 
+                warna = "oren-terang"; 
+                mesej = "Komitmen diperlukan."; 
+            } else { 
+                status = (item.kekerapan === 5) ? "Kaunseling" : "Tindakan Tatatertib"; 
+                warna = (item.kekerapan === 5) ? "merah-terang" : "merah-pekat"; 
+                mesej = "Sila berjumpa penyelia."; 
+                kelasTambahan = "blink-warning";
+            }
+
+            let namaDisplay = isAdmin ? `<input type="text" id="editNama${item.id}" value="${item.nama}">` : item.nama;
+            let tarikhDisplay = isAdmin ? `<input type="datetime-local" id="editTarikh${item.id}" style="width:140px">` : item.masa;
+            let sebabDisplay = isAdmin ? `<input type="text" id="editSebab${item.id}" value="${item.sebab}">` : item.sebab;
+            let btnAksi = isAdmin ? `<button onclick="simpanEdit(${item.id})" style="background:#27ae60; padding:4px 8px; font-size:10px;">Simpan</button>` : "";
+            let btnLepas = isAdmin ? `<br><button class="btn-lepas" onclick="promptPelepasan(${item.id})">Lepas</button>` : "";
+            let btnPadam = isAdmin ? `<br><button class="delete" onclick="padam(${item.id})">PADAM</button>` : "-";
+
+            table.innerHTML += `<tr class="${warna} ${kelasTambahan}">
+                <td>${i + 1}</td><td>${item.idpass}</td><td>${namaDisplay}</td><td>${tarikhDisplay}</td>
+                <td>${sebabDisplay}</td><td>${item.kekerapan}</td>
+                <td>${status}${btnLepas}</td><td>${mesej}</td><td>${btnAksi}${btnPadam}</td>
+            </tr>`;
+        });
+    }
+
+    function eksportExcel() {
+        let b = document.getElementById("filterBulan").value;
+        let t = document.getElementById("filterTahun").value;
+        let filtered = data.filter(i => {
+            let d = new Date(i.iso);
+            return (b === "all" || d.getMonth() == b) && (d.getFullYear() == t);
+        });
+        if(filtered.length === 0) return alert("Tiada data.");
+        let ws = XLSX.utils.json_to_sheet(filtered.map(i => ({ "ID PASS": i.idpass, "Nama": i.nama, "Tarikh": i.masa, "Sebab": i.sebab, "Kekerapan": i.kekerapan, "Status": i.dilepaskan })));
+        let wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Rekod");
+        XLSX.writeFile(wb, `Rekod_Ketidakhadiran_${t}.xlsx`);
+    }
+
+    function promptPelepasan(id) {
+        let item = data.find(i => i.id === id);
+        let p = prompt("Nama pegawai pelulus:", item.dilepaskan === "-" ? "" : item.dilepaskan);
+        if(p) { item.dilepaskan = p; save(); paparData(); }
+    }
+
+    function padam(id) { if(confirm("Padam rekod ini?")) { data = data.filter(i => i.id !== id); save(); paparData(); } }
+    
+    paparData();
+</script>
+</body>
+</html>
